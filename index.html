@@ -38,6 +38,11 @@ video{width:100%;border-radius:8px;background:#000;max-height:60vh}
 .item:first-of-type{border-top:0}
 :focus-visible{outline:3px solid var(--mat);outline-offset:2px}
 svg{width:100%;height:auto}
+#frames{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin:10px 0}
+#frames img{width:100%;border-radius:6px;display:block}
+details{border-top:1px solid var(--line);padding:8px 0}
+.pre{white-space:pre-wrap;margin-top:6px}
+textarea{resize:vertical}
 </style>
 </head>
 <body>
@@ -91,6 +96,20 @@ svg{width:100%;height:auto}
     <h2>Tags <span class="mut" id="cnt"></span></h2>
     <div id="tags"><p class="mut">Save or select a match, then add your first tag.</p></div>
   </div>
+  <div class="card">
+    <h2>AI feedback</h2>
+    <p class="mut">Free: the site grabs frames and writes the prompt. You send them to Claude, then paste the answer back here.</p>
+    <div class="row">
+      <div><label for="me">Who are you in the video?</label><input id="me" placeholder="e.g. blue gi, on the left"></div>
+      <div><label for="nf">Frames to grab</label><select id="nf"><option>6</option><option selected>8</option><option>12</option></select></div>
+    </div>
+    <button class="btn pri" id="gen">Prepare for Claude</button>
+    <div id="frames"></div>
+    <p id="shr" hidden><button class="btn pri" id="share">Share frames + prompt</button> <button class="btn" id="cp">Copy prompt</button></p>
+    <label for="ai">Paste Claude's feedback</label>
+    <textarea id="ai" rows="6"></textarea>
+    <p><button class="btn" id="saveAi">Save feedback</button></p>
+  </div>
 </section>
 
 <section id="vP" hidden>
@@ -100,6 +119,7 @@ svg{width:100%;height:auto}
   </div>
   <div class="card"><h2>Improving</h2><div id="up"></div></div>
   <div class="card"><h2>Getting worse</h2><div id="dn"></div></div>
+  <div class="card"><h2>Feedback history</h2><div id="hist"></div></div>
   <div class="card">
     <h2>Backup</h2>
     <p class="mut">Download your data, or restore it on another device.</p>
@@ -134,6 +154,8 @@ function fill(){
 function render(){
   fill();const m=get();
   if(m){$("d").value=m.date;$("o").value=m.opp;$("r").value=m.res}
+  $("ai").value=m&&m.ai||"";
+  $("me").value=m&&m.me||(M.slice().reverse().find(x=>x.me)||{}).me||"";
   const t=m?m.tags.slice().sort((a,b)=>a.t-b.t):[];
   $("cnt").textContent=t.length?"("+t.length+")":"";
   $("tags").innerHTML=t.length?t.map(g=>`<div class="tag" data-t="${g.t}">
@@ -161,6 +183,7 @@ $("tags").onclick=e=>{
 };
 
 function progress(){
+  hist();
   const ms=M.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(m=>m.tags.length);
   if(!ms.length){$("chart").innerHTML='<p class="mut">Tag at least one match to see progress.</p>';$("up").innerHTML=$("dn").innerHTML='<p class="mut">Nothing yet.</p>';return}
   const W=640,H=200,P=30,n=ms.length;
@@ -185,6 +208,55 @@ function progress(){
 
 $("exp").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(M)],{type:"application/json"}));a.download="mat-notes-backup.json";a.click()};
 $("imp").onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(s=>{try{const d=JSON.parse(s);if(!Array.isArray(d))throw 0;M=d;cur=M.length?M[M.length-1].id:null;save();render();progress()}catch(_){alert("That file is not a valid backup.")}})};
+
+let FR=[],PR="";
+const TL=t=>t.slice().sort((a,b)=>a.t-b.t).map(g=>`${mmss(g.t)} ${g.q==="good"?"good":"needs work"}: ${g.ev} from ${g.pos}${g.n?" ("+g.n+")":""}`).join("\n");
+function trendText(){
+  const ms=M.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(m=>m.tags.length);
+  if(ms.length<2)return "";
+  const k=Math.max(1,Math.floor(ms.length/2)),rec=ms.slice(-k).flatMap(m=>m.tags),old=ms.slice(0,ms.length-k).flatMap(m=>m.tags),u=[],d=[];
+  EV.forEach(ev=>{const a=rec.filter(t=>t.ev===ev),b=old.filter(t=>t.ev===ev);if(!a.length||!b.length||a.length+b.length<3)return;const x=rate(a)-rate(b);if(x>=.15)u.push(ev);else if(x<=-.15)d.push(ev)});
+  return `Across my logged matches, improving: ${u.join(", ")||"nothing clear yet"}. Getting worse: ${d.join(", ")||"nothing clear yet"}.`;
+}
+async function grab(times){
+  const v=$("v"),keep=v.currentTime,out=[];
+  for(let t of times){
+    t=Math.min(t,Math.max(0,v.duration-.1));
+    if(Math.abs(v.currentTime-t)<.01)t+=.05;
+    await new Promise(r=>{v.onseeked=r;v.currentTime=t});
+    const c=document.createElement("canvas"),w=640;c.width=w;c.height=Math.round(w*v.videoHeight/v.videoWidth);
+    c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+    const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.7));
+    out.push({t,b,url:URL.createObjectURL(b)});
+  }
+  v.onseeked=null;v.currentTime=keep;return out;
+}
+$("gen").onclick=async()=>{
+  const m=get(),v=$("v"),btn=$("gen");
+  if(!m){alert("Save the match first.");return}
+  if(v.style.display!=="block"||!v.duration){alert("Pick a video first.");return}
+  const n=+$("nf").value,tg=m.tags.slice().sort((a,b)=>a.t-b.t),c=Math.min(n,tg.length);
+  const times=tg.length?Array.from({length:c},(_,i)=>tg[Math.round(i*(tg.length-1)/Math.max(1,c-1))].t):Array.from({length:n},(_,i)=>(i+1)*v.duration/(n+1));
+  btn.textContent="Grabbing frames…";
+  try{FR=await grab(times)}catch(e){alert("Could not read frames from this video.");btn.textContent="Prepare for Claude";return}
+  btn.textContent="Prepare for Claude";
+  const me=$("me").value.trim()||"(not specified)";m.me=$("me").value.trim();save();
+  PR=`I'm a hobbyist Brazilian Jiu-Jitsu practitioner. The attached ${FR.length} frames are from one of my matches, in order, at these times: ${FR.map(f=>mmss(f.t)).join(", ")}.\nWho I am in the video: ${me}.\n\nMy own tags:\n${TL(m.tags)||"(none)"}\n\n${trendText()}\n\nPlease tell me: 1) what I did well, 2) my biggest mistakes, 3) three drills to fix them. If you can't tell who is who in a frame, say so instead of guessing. Keep it concise.`;
+  $("frames").innerHTML=FR.map(f=>`<figure style="margin:0"><img src="${f.url}" alt="Frame at ${mmss(f.t)}"><figcaption class="mut">${mmss(f.t)}</figcaption></figure>`).join("");
+  $("shr").hidden=false;
+};
+$("cp").onclick=async()=>{try{await navigator.clipboard.writeText(PR);$("cp").textContent="Copied"}catch(e){prompt("Copy this prompt:",PR)}};
+$("share").onclick=()=>{
+  try{navigator.clipboard.writeText(PR).catch(()=>{})}catch(e){}
+  const files=FR.map((f,i)=>new File([f.b],`frame-${i+1}.jpg`,{type:"image/jpeg"}));
+  if(navigator.canShare&&navigator.canShare({files})){navigator.share({files,text:PR}).catch(()=>{})}
+  else alert("Sharing isn't supported here. Long-press each frame to save it, attach them in Claude, and paste the prompt (use Copy prompt).");
+};
+$("saveAi").onclick=()=>{const m=get();if(!m)return;m.ai=$("ai").value;m.me=$("me").value.trim();save();$("saveAi").textContent="Saved";setTimeout(()=>$("saveAi").textContent="Save feedback",1500)};
+function hist(){
+  const a=M.filter(m=>m.ai).sort((x,y)=>y.date.localeCompare(x.date));
+  $("hist").innerHTML=a.length?a.map(m=>`<details><summary>${m.date} vs ${esc(m.opp||"opponent")} (${m.res})</summary><div class="pre">${esc(m.ai)}</div></details>`).join(""):'<p class="mut">Saved feedback shows up here.</p>';
+}
 
 load();cur=M.length?M[M.length-1].id:null;render();
 </script>
