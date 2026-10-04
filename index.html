@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mat Notes – BJJ match tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f4;--card:#fff;--ink:#14213a;--mut:#5d6b82;--line:#d5dbe4;--mat:#17375e;--good:#2b7a4b;--bad:#b4432b;--goodbg:#e3f2e9;--badbg:#f8e5e0}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1826;--card:#18253a;--ink:#e8edf5;--mut:#9aa8bf;--line:#2b3b55;--mat:#7fb0ee;--good:#5cc387;--bad:#ef8a72;--goodbg:#1b3a2b;--badbg:#42241e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Barlow,system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px 14px 60px}
+h1,h2,h3{font-family:'Barlow Condensed',Impact,sans-serif;margin:0;letter-spacing:.2px}
+h1{font-size:2rem;color:var(--mat)}h2{font-size:1.4rem;margin-bottom:8px}h3{font-size:1.1rem}
+nav{display:flex;gap:8px;margin:12px 0}
+nav button,.btn{font:600 1rem Barlow,sans-serif;border:1.5px solid var(--mat);background:transparent;color:var(--mat);padding:9px 14px;border-radius:8px;cursor:pointer}
+nav button.on,.btn.pri{background:var(--mat);color:var(--bg)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+label{display:block;font-size:.85rem;color:var(--mut);margin-bottom:3px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px}
+video{width:100%;border-radius:8px;background:#000;max-height:60vh}
+.q{display:flex;gap:8px;margin-bottom:10px}
+.q label{flex:1;margin:0;color:var(--ink);cursor:pointer}
+.q input{display:none}
+.q span{display:block;text-align:center;padding:10px;border-radius:8px;border:1.5px solid var(--line);font-weight:600}
+.q input:checked+span.g{background:var(--goodbg);border-color:var(--good);color:var(--good)}
+.q input:checked+span.b{background:var(--badbg);border-color:var(--bad);color:var(--bad)}
+.tag{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);cursor:pointer}
+.tag:first-of-type{border-top:0}
+.t{font-weight:700;min-width:48px;color:var(--mat)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.x{margin-left:auto;background:none;border:0;color:var(--mut);font-size:1.2rem;cursor:pointer}
+.mut{color:var(--mut);font-size:.9rem}
+.up{color:var(--good)}.dn{color:var(--bad)}
+.item{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.item:first-of-type{border-top:0}
+:focus-visible{outline:3px solid var(--mat);outline-offset:2px}
+svg{width:100%;height:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Mat Notes</h1>
+<p class="mut">Tag moments from your rolls, then watch what improves and what slips. Everything is saved on this device.</p>
+<nav>
+  <button id="tM" class="on">Match</button>
+  <button id="tP">Progress</button>
+</nav>
+
+<section id="vM">
+  <div class="card">
+    <h2>Match details</h2>
+    <div class="row">
+      <div><label for="d">Date</label><input id="d" type="date"></div>
+      <div><label for="o">Opponent</label><input id="o" placeholder="Name or belt"></div>
+      <div><label for="r">Result</label>
+        <select id="r"><option>Win</option><option>Loss</option><option>Draw</option></select></div>
+    </div>
+    <div class="row">
+      <div><label for="sel">Saved matches</label><select id="sel"></select></div>
+    </div>
+    <button class="btn pri" id="newM">Save as new match</button>
+    <button class="btn" id="upd">Update details</button>
+  </div>
+
+  <div class="card">
+    <h2>Video</h2>
+    <label for="f">Pick a video from your device (it is not uploaded anywhere)</label>
+    <input id="f" type="file" accept="video/*">
+    <video id="v" controls playsinline style="margin-top:10px;display:none"></video>
+  </div>
+
+  <div class="card">
+    <h2>Tag a moment</h2>
+    <div class="row">
+      <div><label for="pos">Position</label><select id="pos"></select></div>
+      <div><label for="ev">What happened</label><select id="ev"></select></div>
+    </div>
+    <div class="q">
+      <label><input type="radio" name="q" value="good" checked><span class="g">Good</span></label>
+      <label><input type="radio" name="q" value="bad"><span class="b">Needs work</span></label>
+    </div>
+    <label for="n">Note (optional)</label>
+    <input id="n" placeholder="e.g. gave up the underhook">
+    <p><button class="btn pri" id="add">Add tag at current time</button></p>
+  </div>
+
+  <div class="card">
+    <h2>Tags <span class="mut" id="cnt"></span></h2>
+    <div id="tags"><p class="mut">Save or select a match, then add your first tag.</p></div>
+  </div>
+</section>
+
+<section id="vP" hidden>
+  <div class="card">
+    <h2>Good-moment rate per match</h2>
+    <div id="chart"></div>
+  </div>
+  <div class="card"><h2>Improving</h2><div id="up"></div></div>
+  <div class="card"><h2>Getting worse</h2><div id="dn"></div></div>
+  <div class="card">
+    <h2>Backup</h2>
+    <p class="mut">Download your data, or restore it on another device.</p>
+    <button class="btn" id="exp">Download backup</button>
+    <label class="btn" style="display:inline-block">Restore backup<input id="imp" type="file" accept="application/json" hidden></label>
+  </div>
+</section>
+</main>
+
+<script>
+const POS=["Standing","Guard (bottom)","Guard (top)","Half guard","Side control","Mount","Back control","Turtle","Leg entanglement","Scramble"];
+const EV=["Takedown","Sweep","Guard pass","Escape","Submission attempt","Submission finish","Guard retention","Position transition","Defended a sub","Got taken down","Got swept","Got passed","Got submitted","Lost position"];
+const KEY="matnotes-v1";
+let M=[],cur=null;
+const $=id=>document.getElementById(id);
+function load(){try{M=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){M=[]}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(M))}catch(e){alert("Could not save. Browser storage may be blocked or full.")}}
+const mmss=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
+const rate=a=>a.length?a.filter(t=>t.q==="good").length/a.length:null;
+const get=()=>M.find(m=>m.id===cur);
+
+$("pos").innerHTML=POS.map(p=>`<option>${p}</option>`).join("");
+$("ev").innerHTML=EV.map(p=>`<option>${p}</option>`).join("");
+$("d").valueAsDate=new Date();
+
+function show(p){$("vM").hidden=p;$("vP").hidden=!p;$("tM").classList.toggle("on",!p);$("tP").classList.toggle("on",p);if(p)progress()}
+$("tM").onclick=()=>show(false);$("tP").onclick=()=>show(true);
+
+function fill(){
+  $("sel").innerHTML=M.length?M.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(m=>`<option value="${m.id}" ${m.id===cur?"selected":""}>${m.date} vs ${m.opp||"opponent"} (${m.res})</option>`).join(""):"<option value=''>No matches yet</option>";
+}
+function render(){
+  fill();const m=get();
+  if(m){$("d").value=m.date;$("o").value=m.opp;$("r").value=m.res}
+  const t=m?m.tags.slice().sort((a,b)=>a.t-b.t):[];
+  $("cnt").textContent=t.length?"("+t.length+")":"";
+  $("tags").innerHTML=t.length?t.map(g=>`<div class="tag" data-t="${g.t}">
+    <span class="t">${mmss(g.t)}</span><span class="dot" style="background:var(--${g.q==="good"?"good":"bad"})"></span>
+    <span><b>${g.ev}</b> <span class="mut">from ${g.pos}${g.n?" – "+esc(g.n):""}</span></span>
+    <button class="x" data-id="${g.id}" aria-label="Delete tag">×</button></div>`).join(""):'<p class="mut">Save or select a match, then add your first tag.</p>';
+}
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+$("newM").onclick=()=>{const m={id:"m"+Date.now(),date:$("d").value,opp:$("o").value.trim(),res:$("r").value,tags:[]};M.push(m);cur=m.id;save();render()};
+$("upd").onclick=()=>{const m=get();if(!m)return;m.date=$("d").value;m.opp=$("o").value.trim();m.res=$("r").value;save();render()};
+$("sel").onchange=e=>{cur=e.target.value;render()};
+$("f").onchange=e=>{const f=e.target.files[0];if(!f)return;$("v").src=URL.createObjectURL(f);$("v").style.display="block"};
+$("add").onclick=()=>{
+  const m=get();if(!m){alert("Save the match first.");return}
+  const t=$("v").style.display==="block"?$("v").currentTime:0;
+  m.tags.push({id:"t"+Date.now(),t,pos:$("pos").value,ev:$("ev").value,q:document.querySelector('input[name=q]:checked').value,n:$("n").value.trim()});
+  $("n").value="";save();render();
+};
+$("tags").onclick=e=>{
+  const x=e.target.closest(".x");const m=get();
+  if(x){m.tags=m.tags.filter(g=>g.id!==x.dataset.id);save();render();return}
+  const row=e.target.closest(".tag");
+  if(row&&$("v").style.display==="block"){$("v").currentTime=+row.dataset.t;$("v").play()}
+};
+
+function progress(){
+  const ms=M.slice().sort((a,b)=>a.date.localeCompare(b.date)).filter(m=>m.tags.length);
+  if(!ms.length){$("chart").innerHTML='<p class="mut">Tag at least one match to see progress.</p>';$("up").innerHTML=$("dn").innerHTML='<p class="mut">Nothing yet.</p>';return}
+  const W=640,H=200,P=30,n=ms.length;
+  const pts=ms.map((m,i)=>[P+(n===1?(W-2*P)/2:i*(W-2*P)/(n-1)),H-P-rate(m.tags)*(H-2*P),m]);
+  $("chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Good-moment rate per match">
+   <line x1="${P}" y1="${P}" x2="${W-P}" y2="${P}" stroke="var(--line)"/><line x1="${P}" y1="${H-P}" x2="${W-P}" y2="${H-P}" stroke="var(--line)"/>
+   <text x="2" y="${P+4}" fill="var(--mut)" font-size="12">100%</text><text x="8" y="${H-P+4}" fill="var(--mut)" font-size="12">0%</text>
+   <polyline fill="none" stroke="var(--mat)" stroke-width="3" points="${pts.map(p=>p[0]+","+p[1]).join(" ")}"/>
+   ${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="5" fill="var(--mat)"/><text x="${p[0]}" y="${H-8}" text-anchor="middle" fill="var(--mut)" font-size="11">${p[2].date.slice(5)}</text>`).join("")}</svg>`;
+  if(n<2){$("up").innerHTML=$("dn").innerHTML='<p class="mut">Tag two or more matches to compare.</p>';return}
+  const k=Math.max(1,Math.floor(n/2));const rec=ms.slice(-k).flatMap(m=>m.tags),old=ms.slice(0,n-k).flatMap(m=>m.tags);
+  const ups=[],dns=[];
+  EV.forEach(ev=>{
+    const a=rec.filter(t=>t.ev===ev),b=old.filter(t=>t.ev===ev);
+    if(!a.length||!b.length||a.length+b.length<3)return;
+    const d=rate(a)-rate(b),txt=`<div class="item"><span>${ev}</span><span class="mut">${Math.round(rate(b)*100)}% → ${Math.round(rate(a)*100)}% good</span></div>`;
+    if(d>=.15)ups.push([d,txt]);else if(d<=-.15)dns.push([-d,txt]);
+  });
+  const list=a=>a.length?a.sort((x,y)=>y[0]-x[0]).map(x=>x[1]).join(""):'<p class="mut">No clear change yet. Keep tagging.</p>';
+  $("up").innerHTML=list(ups);$("dn").innerHTML=list(dns);
+}
+
+$("exp").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(M)],{type:"application/json"}));a.download="mat-notes-backup.json";a.click()};
+$("imp").onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(s=>{try{const d=JSON.parse(s);if(!Array.isArray(d))throw 0;M=d;cur=M.length?M[M.length-1].id:null;save();render();progress()}catch(_){alert("That file is not a valid backup.")}})};
+
+load();cur=M.length?M[M.length-1].id:null;render();
+</script>
+</body>
+</html>
